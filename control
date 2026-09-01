@@ -1,0 +1,9 @@
+Package: com.local.accdemoexacttests
+Name: AccDemoExactTests
+Version: 0.3.0
+Architecture: iphoneos-arm
+Description: LiveContainer smoke and exact AccDemo Mode-3 timing tests.
+Maintainer: local
+Author: local
+Section: Tweaks
+Depends: mobilesubstrate
