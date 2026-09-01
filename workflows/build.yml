@@ -1,0 +1,79 @@
+name: Build AccDemo smoke + exact 0.5x
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install ldid
+
+      - name: Install Theos
+        run: |
+          git clone --recursive https://github.com/theos/theos.git "$HOME/theos"
+          echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: |
+          make clean
+          make all FINALPACKAGE=1
+
+      - name: Patch for LiveContainer
+        run: |
+          for NAME in AccDemoSmoke AccDemoExact05; do
+            FILE="$(find .theos -type f -name "${NAME}.dylib" | head -n 1)"
+            test -n "$FILE"
+
+            echo "=== $NAME BEFORE ==="
+            otool -L "$FILE"
+
+            install_name_tool \
+              -change /Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate \
+              @rpath/CydiaSubstrate.framework/CydiaSubstrate \
+              "$FILE" || true
+
+            install_name_tool \
+              -change /usr/lib/libsubstrate.dylib \
+              @rpath/CydiaSubstrate.framework/CydiaSubstrate \
+              "$FILE" || true
+
+            install_name_tool \
+              -change @rpath/libsubstrate.dylib \
+              @rpath/CydiaSubstrate.framework/CydiaSubstrate \
+              "$FILE" || true
+
+            echo "=== $NAME AFTER ==="
+            otool -L "$FILE"
+
+            ldid -S "$FILE"
+          done
+
+      - name: Collect dylibs
+        run: |
+          mkdir -p output
+
+          SMOKE="$(find .theos -type f -name 'AccDemoSmoke.dylib' | head -n 1)"
+          EXACT="$(find .theos -type f -name 'AccDemoExact05.dylib' | head -n 1)"
+
+          test -n "$SMOKE"
+          test -n "$EXACT"
+
+          cp "$SMOKE" output/AccDemoSmoke_10x.dylib
+          cp "$EXACT" output/AccDemoExact_05x.dylib
+
+      - name: Upload dylibs
+        uses: actions/upload-artifact@v4
+        with:
+          name: AccDemo-Smoke-and-Exact
+          path: |
+            output/AccDemoSmoke_10x.dylib
+            output/AccDemoExact_05x.dylib
